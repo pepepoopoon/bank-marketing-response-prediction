@@ -22,6 +22,7 @@ dev = ["pytest==8.4.2", "ruff==0.15.6"]
 bank-generate-smoke = "bank_marketing.generate_smoke_data:main"
 bank-train = "bank_marketing.train:main"
 bank-evaluate = "bank_marketing.evaluate:main"
+bank-experiment = "bank_marketing.experiments:main"
 bank-predict = "bank_marketing.predict:main"
 
 [tool.setuptools.packages.find]

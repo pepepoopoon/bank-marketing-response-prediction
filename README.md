@@ -33,7 +33,11 @@ python -m pip install -e ".[dev]"
 
 ## Подготовка данных
 
-Источник: [UCI Bank Marketing](https://archive.ics.uci.edu/dataset/222/bank%2Bmarketing). Лицензию нужно проверить на официальной карточке; raw-файлы не коммитятся. Не меняйте порядок `bank-additional-full.csv`. Для smoke-run: `make smoke`.
+Контрольный источник — [UCI Bank Marketing, id 222](https://archive.ics.uci.edu/dataset/222/bank+marketing),
+лицензия CC BY 4.0. Реальный `bank-additional-full.csv` в репозиторий не включён, поэтому
+его локальные версия, размер и SHA-256 не зафиксированы; их нужно записать перед полным
+экспериментом. Не меняйте порядок строк исходного файла. Для smoke-run используйте
+`make smoke`.
 
 ## Запуск обучения
 
