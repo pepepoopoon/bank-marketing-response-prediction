@@ -31,6 +31,8 @@ ABLATION_GROUPS = {
         "nr.employed",
     ),
 }
+SEGMENT_COLUMNS = ("contact", "job", "month")
+DATA_QUALITY_SCENARIOS = ("clean", "missing_numeric", "unseen_category", "mixed_missingness")
 
 
 @dataclass(frozen=True)
@@ -43,6 +45,7 @@ class ExperimentConfig:
     model_seed: int = 20250719
     budget_fraction: float = 0.15
     ablation: str = "none"
+    data_quality: str = "clean"
 
     def validate(self) -> None:
         if not self.experiment_id.strip():
@@ -53,11 +56,41 @@ class ExperimentConfig:
             raise ValueError("budget_fraction должен быть в диапазоне (0, 1]")
         if self.ablation not in ABLATION_GROUPS:
             raise ValueError(f"Неизвестная группа абляции: {self.ablation}")
+        if self.data_quality not in DATA_QUALITY_SCENARIOS:
+            raise ValueError(f"Неизвестный сценарий качества данных: {self.data_quality}")
 
 
 def _frame_fingerprint(frame: pd.DataFrame) -> str:
     payload = frame.to_csv(index=False, lineterminator="\n").encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
+
+
+def _apply_data_quality_scenario(
+    frame: pd.DataFrame, scenario: str
+) -> tuple[pd.DataFrame, dict[str, object]]:
+    changed = frame.copy()
+    test_start = int(len(changed) * 0.8)
+    test_index = changed.index[test_start:]
+    if scenario == "missing_numeric":
+        changed.loc[test_index[::3], "euribor3m"] = np.nan
+    elif scenario == "unseen_category":
+        changed.loc[test_index, "job"] = "future_remote_role"
+    elif scenario == "mixed_missingness":
+        changed.loc[test_index[::2], "education"] = pd.NA
+        changed.loc[test_index[1::3], "cons.conf.idx"] = np.nan
+    elif scenario != "clean":
+        raise ValueError(f"Неизвестный сценарий качества данных: {scenario}")
+    report = {
+        "scenario": scenario,
+        "test_rows": len(test_index),
+        "missing_test_cells": {
+            column: int(changed.loc[test_index, column].isna().sum())
+            for column in FEATURES
+            if changed.loc[test_index, column].isna().any()
+        },
+        "unseen_job_rows": int(changed.loc[test_index, "job"].eq("future_remote_role").sum()),
+    }
+    return validate_frame(changed), report
 
 
 def _evaluate_model(
@@ -117,10 +150,48 @@ def _temporal_diagnostics(
     }
 
 
+def _segment_diagnostics(
+    model: object,
+    test: pd.DataFrame,
+    features: list[str],
+    budget_fraction: float,
+) -> dict[str, object]:
+    probability = model.predict_proba(test[features])[:, 1]
+    selected, _ = select_for_budget(probability, budget_fraction)
+    work = test.assign(_score=probability, _selected=selected.astype(int))
+    diagnostics: dict[str, object] = {}
+    for column in SEGMENT_COLUMNS:
+        groups: dict[str, dict[str, float | int]] = {}
+        for value, group in work.groupby(column, observed=True, sort=True):
+            positives = int(group[TARGET].sum())
+            selected_positives = int(group.loc[group["_selected"].eq(1), TARGET].sum())
+            groups[str(value)] = {
+                "rows": len(group),
+                "positive_rate": float(group[TARGET].mean()),
+                "mean_score": float(group["_score"].mean()),
+                "selected_rate": float(group["_selected"].mean()),
+                "precision_at_budget": (
+                    float(selected_positives / group["_selected"].sum())
+                    if group["_selected"].sum()
+                    else 0.0
+                ),
+                "recall_at_budget": (
+                    float(selected_positives / positives) if positives else 0.0
+                ),
+            }
+        selected_rates = [float(report["selected_rate"]) for report in groups.values()]
+        diagnostics[column] = {
+            "groups": groups,
+            "selected_rate_max_gap": max(selected_rates) - min(selected_rates),
+        }
+    return diagnostics
+
+
 def run_experiment(config: ExperimentConfig) -> dict[str, object]:
     """Обучить кандидатов и один раз оценить выбранную модель на будущем holdout."""
     config.validate()
-    frame = validate_frame(generate_smoke_frame(config.rows, config.data_seed))
+    generated = validate_frame(generate_smoke_frame(config.rows, config.data_seed))
+    frame, quality_report = _apply_data_quality_scenario(generated, config.data_quality)
     train, validation, test = split_data(frame)
     removed_features = list(ABLATION_GROUPS[config.ablation])
     features = [column for column in FEATURES if column not in removed_features]
@@ -179,6 +250,7 @@ def run_experiment(config: ExperimentConfig) -> dict[str, object]:
                 "validation": float(validation[TARGET].mean()),
                 "test": float(test[TARGET].mean()),
             },
+            "quality_scenario": quality_report,
         },
         "feature_set": {
             "ablation": config.ablation,
@@ -192,6 +264,9 @@ def run_experiment(config: ExperimentConfig) -> dict[str, object]:
         "baseline_test": baseline_metrics,
         "comparison_to_baseline": comparison,
         "temporal_diagnostics": _temporal_diagnostics(
+            fitted[selected_model], test, features, config.budget_fraction
+        ),
+        "segment_diagnostics": _segment_diagnostics(
             fitted[selected_model], test, features, config.budget_fraction
         ),
     }
@@ -218,6 +293,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-seed", type=int, default=20250719)
     parser.add_argument("--budget-fraction", type=float, default=0.15)
     parser.add_argument("--ablation", choices=sorted(ABLATION_GROUPS), default="none")
+    parser.add_argument(
+        "--data-quality", choices=DATA_QUALITY_SCENARIOS, default="clean"
+    )
     return parser
 
 
@@ -230,6 +308,7 @@ def main() -> None:
         model_seed=args.model_seed,
         budget_fraction=args.budget_fraction,
         ablation=args.ablation,
+        data_quality=args.data_quality,
     )
     result = run_experiment(config)
     write_result(result, args.output)
