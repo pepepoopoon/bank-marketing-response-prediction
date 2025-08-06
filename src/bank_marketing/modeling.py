@@ -59,7 +59,12 @@ def validate_model_bundle(bundle: object) -> dict[str, object]:
     return bundle
 
 
-def preprocessor() -> ColumnTransformer:
+def preprocessor(features: list[str] | None = None) -> ColumnTransformer:
+    selected = FEATURES if features is None else features
+    numeric_features = [column for column in NUMERIC_FEATURES if column in selected]
+    categorical_features = [column for column in CATEGORICAL_FEATURES if column in selected]
+    if not numeric_features and not categorical_features:
+        raise ValueError("at least one known feature is required")
     numeric = Pipeline([("impute", SimpleImputer(strategy="median")), ("scale", StandardScaler())])
     categorical = Pipeline(
         [
@@ -67,16 +72,19 @@ def preprocessor() -> ColumnTransformer:
             ("encode", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
         ]
     )
-    return ColumnTransformer(
-        [("numeric", numeric, NUMERIC_FEATURES), ("categorical", categorical, CATEGORICAL_FEATURES)]
-    )
+    transformers = []
+    if numeric_features:
+        transformers.append(("numeric", numeric, numeric_features))
+    if categorical_features:
+        transformers.append(("categorical", categorical, categorical_features))
+    return ColumnTransformer(transformers)
 
 
-def _pipeline(estimator: object) -> Pipeline:
-    return Pipeline([("preprocess", preprocessor()), ("model", estimator)])
+def _pipeline(estimator: object, features: list[str] | None = None) -> Pipeline:
+    return Pipeline([("preprocess", preprocessor(features)), ("model", estimator)])
 
 
-def candidate_models(seed: int) -> dict[str, object]:
+def candidate_models(seed: int, features: list[str] | None = None) -> dict[str, object]:
     random_forest = RandomForestClassifier(
         n_estimators=80,
         min_samples_leaf=4,
@@ -85,16 +93,19 @@ def candidate_models(seed: int) -> dict[str, object]:
         n_jobs=1,
     )
     calibrated_forest = CalibratedClassifierCV(
-        estimator=_pipeline(random_forest), method="sigmoid", cv=3
+        estimator=_pipeline(random_forest, features), method="sigmoid", cv=3
     )
     return {
-        "dummy": _pipeline(DummyClassifier(strategy="prior")),
-        "logistic_regression": _pipeline(LogisticRegression(max_iter=1_000, random_state=seed)),
-        "weighted_logistic_regression": _pipeline(
-            LogisticRegression(max_iter=1_000, class_weight="balanced", random_state=seed)
+        "dummy": _pipeline(DummyClassifier(strategy="prior"), features),
+        "logistic_regression": _pipeline(
+            LogisticRegression(max_iter=1_000, random_state=seed), features
         ),
-        "random_forest": _pipeline(random_forest),
-        "gradient_boosting": _pipeline(GradientBoostingClassifier(random_state=seed)),
+        "weighted_logistic_regression": _pipeline(
+            LogisticRegression(max_iter=1_000, class_weight="balanced", random_state=seed),
+            features,
+        ),
+        "random_forest": _pipeline(random_forest, features),
+        "gradient_boosting": _pipeline(GradientBoostingClassifier(random_state=seed), features),
         "calibrated_random_forest": calibrated_forest,
     }
 

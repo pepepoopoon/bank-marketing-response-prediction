@@ -8,6 +8,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from .data import FEATURES, TARGET, split_data, validate_frame
@@ -15,6 +16,21 @@ from .generate_smoke_data import generate_smoke_frame
 from .modeling import candidate_models, classification_metrics, select_for_budget
 
 RESULT_SCHEMA_VERSION = 1
+BASELINE_MODEL = "dummy"
+ABLATION_GROUPS = {
+    "none": (),
+    "demographics": ("age", "job", "marital", "education"),
+    "credit_profile": ("default", "housing", "loan"),
+    "contact_context": ("contact", "month", "day_of_week", "campaign"),
+    "contact_history": ("pdays", "previous", "poutcome"),
+    "macroeconomics": (
+        "emp.var.rate",
+        "cons.price.idx",
+        "cons.conf.idx",
+        "euribor3m",
+        "nr.employed",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -26,6 +42,7 @@ class ExperimentConfig:
     data_seed: int = 20250719
     model_seed: int = 20250719
     budget_fraction: float = 0.15
+    ablation: str = "none"
 
     def validate(self) -> None:
         if not self.experiment_id.strip():
@@ -34,6 +51,8 @@ class ExperimentConfig:
             raise ValueError("Для хронологического эксперимента требуется не менее 90 строк")
         if not 0 < self.budget_fraction <= 1:
             raise ValueError("budget_fraction должен быть в диапазоне (0, 1]")
+        if self.ablation not in ABLATION_GROUPS:
+            raise ValueError(f"Неизвестная группа абляции: {self.ablation}")
 
 
 def _frame_fingerprint(frame: pd.DataFrame) -> str:
@@ -42,11 +61,60 @@ def _frame_fingerprint(frame: pd.DataFrame) -> str:
 
 
 def _evaluate_model(
-    model: object, frame: pd.DataFrame, budget_fraction: float
+    model: object,
+    frame: pd.DataFrame,
+    features: list[str],
+    budget_fraction: float,
 ) -> dict[str, object]:
-    probability = model.predict_proba(frame[FEATURES])[:, 1]
+    probability = model.predict_proba(frame[features])[:, 1]
     selected, threshold = select_for_budget(probability, budget_fraction)
     return classification_metrics(frame[TARGET], probability, threshold, selected=selected)
+
+
+def _temporal_window_report(
+    model: object,
+    frame: pd.DataFrame,
+    features: list[str],
+    budget_fraction: float,
+) -> dict[str, float | int]:
+    probability = model.predict_proba(frame[features])[:, 1]
+    selected, _ = select_for_budget(probability, budget_fraction)
+    truth = frame[TARGET].to_numpy(dtype=int)
+    positives = int(truth.sum())
+    return {
+        "rows": len(frame),
+        "positive_rate": float(truth.mean()),
+        "mean_score": float(probability.mean()),
+        "brier_score": float(np.mean((truth - probability) ** 2)),
+        "selected_count": int(selected.sum()),
+        "precision_at_budget": float(truth[selected].mean()),
+        "recall_at_budget": float(truth[selected].sum() / positives) if positives else 0.0,
+    }
+
+
+def _temporal_diagnostics(
+    model: object,
+    test: pd.DataFrame,
+    features: list[str],
+    budget_fraction: float,
+) -> dict[str, object]:
+    midpoint = len(test) // 2
+    early = _temporal_window_report(model, test.iloc[:midpoint], features, budget_fraction)
+    late = _temporal_window_report(model, test.iloc[midpoint:], features, budget_fraction)
+    return {
+        "early_test_window": early,
+        "late_test_window": late,
+        "late_minus_early": {
+            metric: float(late[metric]) - float(early[metric])
+            for metric in (
+                "positive_rate",
+                "mean_score",
+                "brier_score",
+                "precision_at_budget",
+                "recall_at_budget",
+            )
+        },
+    }
 
 
 def run_experiment(config: ExperimentConfig) -> dict[str, object]:
@@ -54,25 +122,45 @@ def run_experiment(config: ExperimentConfig) -> dict[str, object]:
     config.validate()
     frame = validate_frame(generate_smoke_frame(config.rows, config.data_seed))
     train, validation, test = split_data(frame)
+    removed_features = list(ABLATION_GROUPS[config.ablation])
+    features = [column for column in FEATURES if column not in removed_features]
     validation_metrics: dict[str, dict[str, object]] = {}
     fitted: dict[str, object] = {}
     candidate_failures: dict[str, str] = {}
-    for name, model in candidate_models(config.model_seed).items():
+    for name, model in candidate_models(config.model_seed, features).items():
         try:
-            model.fit(train[FEATURES], train[TARGET])
+            model.fit(train[features], train[TARGET])
         except ValueError as error:
             candidate_failures[name] = str(error)
             continue
-        validation_metrics[name] = _evaluate_model(model, validation, config.budget_fraction)
+        validation_metrics[name] = _evaluate_model(
+            model, validation, features, config.budget_fraction
+        )
         fitted[name] = model
 
     if not fitted:
         raise ValueError("Ни один кандидат не обучился на заданной конфигурации")
 
+    eligible_models = [name for name in validation_metrics if name != BASELINE_MODEL]
+    if not eligible_models:
+        raise ValueError("Ни одна обучаемая модель не доступна для сравнения с baseline")
     selected_model = max(
-        validation_metrics,
+        eligible_models,
         key=lambda name: float(validation_metrics[name]["pr_auc"]),
     )
+    test_metrics = _evaluate_model(
+        fitted[selected_model], test, features, config.budget_fraction
+    )
+    baseline_metrics = _evaluate_model(
+        fitted[BASELINE_MODEL], test, features, config.budget_fraction
+    )
+    comparison = {
+        "pr_auc_delta": float(test_metrics["pr_auc"]) - float(baseline_metrics["pr_auc"]),
+        "recall_at_budget_delta": float(test_metrics["recall_at_budget"])
+        - float(baseline_metrics["recall_at_budget"]),
+        "brier_score_reduction": float(baseline_metrics["brier_score"])
+        - float(test_metrics["brier_score"]),
+    }
     result = {
         "schema_version": RESULT_SCHEMA_VERSION,
         "experiment_id": config.experiment_id,
@@ -92,10 +180,20 @@ def run_experiment(config: ExperimentConfig) -> dict[str, object]:
                 "test": float(test[TARGET].mean()),
             },
         },
+        "feature_set": {
+            "ablation": config.ablation,
+            "features": features,
+            "removed_features": removed_features,
+        },
         "selected_model": selected_model,
         "validation_candidates": validation_metrics,
         "candidate_failures": candidate_failures,
-        "test": _evaluate_model(fitted[selected_model], test, config.budget_fraction),
+        "test": test_metrics,
+        "baseline_test": baseline_metrics,
+        "comparison_to_baseline": comparison,
+        "temporal_diagnostics": _temporal_diagnostics(
+            fitted[selected_model], test, features, config.budget_fraction
+        ),
     }
     return result
 
@@ -119,6 +217,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--data-seed", type=int, default=20250719)
     parser.add_argument("--model-seed", type=int, default=20250719)
     parser.add_argument("--budget-fraction", type=float, default=0.15)
+    parser.add_argument("--ablation", choices=sorted(ABLATION_GROUPS), default="none")
     return parser
 
 
@@ -130,6 +229,7 @@ def main() -> None:
         data_seed=args.data_seed,
         model_seed=args.model_seed,
         budget_fraction=args.budget_fraction,
+        ablation=args.ablation,
     )
     result = run_experiment(config)
     write_result(result, args.output)
