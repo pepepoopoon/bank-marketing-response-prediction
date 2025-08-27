@@ -1,0 +1,369 @@
+{
+  "baseline_test": {
+    "brier_score": 0.07987316743827161,
+    "confusion_matrix": [
+      [
+        74,
+        14
+      ],
+      [
+        7,
+        1
+      ]
+    ],
+    "f1": 0.08695652173913043,
+    "pr_auc": 0.08333333333333333,
+    "precision": 0.06666666666666667,
+    "recall": 0.125,
+    "recall_at_budget": 0.125,
+    "roc_auc": 0.5,
+    "selected_count": 15,
+    "selected_fraction": 0.15625,
+    "threshold": 0.024305555555555556
+  },
+  "candidate_failures": {},
+  "comparison_to_baseline": {
+    "brier_score_reduction": 0.0013339585333453918,
+    "pr_auc_delta": 0.07465690212901942,
+    "recall_at_budget_delta": 0.125
+  },
+  "config": {
+    "ablation": "contact_context",
+    "budget_fraction": 0.15,
+    "data_quality": "clean",
+    "data_seed": 223,
+    "experiment_id": "ablation-contact_context-seed-223",
+    "model_seed": 20250719,
+    "rows": 480
+  },
+  "data_mode": "synthetic_smoke",
+  "dataset": {
+    "positive_rate": {
+      "test": 0.08333333333333333,
+      "train": 0.024305555555555556,
+      "validation": 0.07291666666666667
+    },
+    "quality_scenario": {
+      "missing_test_cells": {},
+      "scenario": "clean",
+      "test_rows": 96,
+      "unseen_job_rows": 0
+    },
+    "rows": 480,
+    "sha256": "da5eb09a9b166357c3ae131c558462fd2fac27c49cde2c8ca464e0d570522957",
+    "split_rows": {
+      "test": 96,
+      "train": 288,
+      "validation": 96
+    }
+  },
+  "experiment_id": "ablation-contact_context-seed-223",
+  "feature_set": {
+    "ablation": "contact_context",
+    "features": [
+      "age",
+      "pdays",
+      "previous",
+      "emp.var.rate",
+      "cons.price.idx",
+      "cons.conf.idx",
+      "euribor3m",
+      "nr.employed",
+      "job",
+      "marital",
+      "education",
+      "default",
+      "housing",
+      "loan",
+      "poutcome"
+    ],
+    "removed_features": [
+      "contact",
+      "month",
+      "day_of_week",
+      "campaign"
+    ]
+  },
+  "schema_version": 1,
+  "segment_diagnostics": {
+    "contact": {
+      "groups": {
+        "cellular": {
+          "mean_score": 0.021638849323332113,
+          "positive_rate": 0.05172413793103448,
+          "precision_at_budget": 0.0,
+          "recall_at_budget": 0.0,
+          "rows": 58,
+          "selected_rate": 0.15517241379310345
+        },
+        "telephone": {
+          "mean_score": 0.02698416801295875,
+          "positive_rate": 0.13157894736842105,
+          "precision_at_budget": 0.3333333333333333,
+          "recall_at_budget": 0.4,
+          "rows": 38,
+          "selected_rate": 0.15789473684210525
+        }
+      },
+      "selected_rate_max_gap": 0.0027223230490018013
+    },
+    "job": {
+      "groups": {
+        "admin.": {
+          "mean_score": 0.012126002444479258,
+          "positive_rate": 0.0,
+          "precision_at_budget": 0.0,
+          "recall_at_budget": 0.0,
+          "rows": 15,
+          "selected_rate": 0.06666666666666667
+        },
+        "blue-collar": {
+          "mean_score": 0.043992667882494584,
+          "positive_rate": 0.125,
+          "precision_at_budget": 0.0,
+          "recall_at_budget": 0.0,
+          "rows": 16,
+          "selected_rate": 0.3125
+        },
+        "management": {
+          "mean_score": 0.019989172483867192,
+          "positive_rate": 0.16666666666666666,
+          "precision_at_budget": 0.5,
+          "recall_at_budget": 0.3333333333333333,
+          "rows": 18,
+          "selected_rate": 0.1111111111111111
+        },
+        "retired": {
+          "mean_score": 0.019892170548347923,
+          "positive_rate": 0.05263157894736842,
+          "precision_at_budget": 0.5,
+          "recall_at_budget": 1.0,
+          "rows": 19,
+          "selected_rate": 0.10526315789473684
+        },
+        "services": {
+          "mean_score": 0.0063926514535119,
+          "positive_rate": 0.09090909090909091,
+          "precision_at_budget": 0.0,
+          "recall_at_budget": 0.0,
+          "rows": 11,
+          "selected_rate": 0.0
+        },
+        "technician": {
+          "mean_score": 0.0345060830201025,
+          "positive_rate": 0.058823529411764705,
+          "precision_at_budget": 0.0,
+          "recall_at_budget": 0.0,
+          "rows": 17,
+          "selected_rate": 0.29411764705882354
+        }
+      },
+      "selected_rate_max_gap": 0.3125
+    },
+    "month": {
+      "groups": {
+        "dec": {
+          "mean_score": 0.024820070111682482,
+          "positive_rate": 0.08333333333333333,
+          "precision_at_budget": 0.125,
+          "recall_at_budget": 0.25,
+          "rows": 48,
+          "selected_rate": 0.16666666666666666
+        },
+        "nov": {
+          "mean_score": 0.022689339164269507,
+          "positive_rate": 0.08333333333333333,
+          "precision_at_budget": 0.14285714285714285,
+          "recall_at_budget": 0.25,
+          "rows": 48,
+          "selected_rate": 0.14583333333333334
+        }
+      },
+      "selected_rate_max_gap": 0.020833333333333315
+    }
+  },
+  "selected_model": "logistic_regression",
+  "temporal_diagnostics": {
+    "early_test_window": {
+      "brier_score": 0.0788436144964653,
+      "mean_score": 0.022689339164269507,
+      "positive_rate": 0.08333333333333333,
+      "precision_at_budget": 0.125,
+      "recall_at_budget": 0.25,
+      "rows": 48,
+      "selected_count": 8
+    },
+    "late_minus_early": {
+      "brier_score": -0.0006088111830781784,
+      "mean_score": 0.0021307309474129753,
+      "positive_rate": 0.0,
+      "precision_at_budget": 0.0,
+      "recall_at_budget": 0.0
+    },
+    "late_test_window": {
+      "brier_score": 0.07823480331338713,
+      "mean_score": 0.024820070111682482,
+      "positive_rate": 0.08333333333333333,
+      "precision_at_budget": 0.125,
+      "recall_at_budget": 0.25,
+      "rows": 48,
+      "selected_count": 8
+    }
+  },
+  "test": {
+    "brier_score": 0.07853920890492622,
+    "confusion_matrix": [
+      [
+        75,
+        13
+      ],
+      [
+        6,
+        2
+      ]
+    ],
+    "f1": 0.17391304347826086,
+    "pr_auc": 0.15799023546235275,
+    "precision": 0.13333333333333333,
+    "recall": 0.25,
+    "recall_at_budget": 0.25,
+    "roc_auc": 0.6178977272727273,
+    "selected_count": 15,
+    "selected_fraction": 0.15625,
+    "threshold": 0.0441833482087967
+  },
+  "validation_candidates": {
+    "calibrated_random_forest": {
+      "brier_score": 0.06800609253323957,
+      "confusion_matrix": [
+        [
+          76,
+          13
+        ],
+        [
+          5,
+          2
+        ]
+      ],
+      "f1": 0.18181818181818182,
+      "pr_auc": 0.1288632784693282,
+      "precision": 0.13333333333333333,
+      "recall": 0.2857142857142857,
+      "recall_at_budget": 0.2857142857142857,
+      "roc_auc": 0.6051364365971108,
+      "selected_count": 15,
+      "selected_fraction": 0.15625,
+      "threshold": 0.06979742001825363
+    },
+    "dummy": {
+      "brier_score": 0.06996286651234569,
+      "confusion_matrix": [
+        [
+          75,
+          14
+        ],
+        [
+          6,
+          1
+        ]
+      ],
+      "f1": 0.09090909090909091,
+      "pr_auc": 0.07291666666666667,
+      "precision": 0.06666666666666667,
+      "recall": 0.14285714285714285,
+      "recall_at_budget": 0.14285714285714285,
+      "roc_auc": 0.5,
+      "selected_count": 15,
+      "selected_fraction": 0.15625,
+      "threshold": 0.024305555555555556
+    },
+    "gradient_boosting": {
+      "brier_score": 0.07303907089992483,
+      "confusion_matrix": [
+        [
+          76,
+          13
+        ],
+        [
+          5,
+          2
+        ]
+      ],
+      "f1": 0.18181818181818182,
+      "pr_auc": 0.13315807635029603,
+      "precision": 0.13333333333333333,
+      "recall": 0.2857142857142857,
+      "recall_at_budget": 0.2857142857142857,
+      "roc_auc": 0.6492776886035313,
+      "selected_count": 15,
+      "selected_fraction": 0.15625,
+      "threshold": 0.0014260325738804061
+    },
+    "logistic_regression": {
+      "brier_score": 0.06955566678641785,
+      "confusion_matrix": [
+        [
+          76,
+          13
+        ],
+        [
+          5,
+          2
+        ]
+      ],
+      "f1": 0.18181818181818182,
+      "pr_auc": 0.1462671511780682,
+      "precision": 0.13333333333333333,
+      "recall": 0.2857142857142857,
+      "recall_at_budget": 0.2857142857142857,
+      "roc_auc": 0.5746388443017656,
+      "selected_count": 15,
+      "selected_fraction": 0.15625,
+      "threshold": 0.041086288404789124
+    },
+    "random_forest": {
+      "brier_score": 0.09053175366406231,
+      "confusion_matrix": [
+        [
+          75,
+          14
+        ],
+        [
+          6,
+          1
+        ]
+      ],
+      "f1": 0.09090909090909091,
+      "pr_auc": 0.11927667118821542,
+      "precision": 0.06666666666666667,
+      "recall": 0.14285714285714285,
+      "recall_at_budget": 0.14285714285714285,
+      "roc_auc": 0.6035313001605136,
+      "selected_count": 15,
+      "selected_fraction": 0.15625,
+      "threshold": 0.3747929507865703
+    },
+    "weighted_logistic_regression": {
+      "brier_score": 0.09366639693253964,
+      "confusion_matrix": [
+        [
+          76,
+          13
+        ],
+        [
+          5,
+          2
+        ]
+      ],
+      "f1": 0.18181818181818182,
+      "pr_auc": 0.13304860236274496,
+      "precision": 0.13333333333333333,
+      "recall": 0.2857142857142857,
+      "recall_at_budget": 0.2857142857142857,
+      "roc_auc": 0.5762439807383628,
+      "selected_count": 15,
+      "selected_fraction": 0.15625,
+      "threshold": 0.3081917163750169
+    }
+  }
+}
